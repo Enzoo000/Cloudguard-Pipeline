@@ -33,6 +33,11 @@ target/
 .DS_Store
 Thumbs.db
 
+# Secrets
+.env
+.env.*
+!.env.example
+
 # Security scan outputs (keep screenshots in docs/findings, not raw scan dumps)
 *-scan-results.json
 *-scan-results.sarif

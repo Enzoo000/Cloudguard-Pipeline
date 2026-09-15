@@ -1,4 +1,4 @@
-version: "3.8"
+
 
 services:
   localstack:
@@ -8,10 +8,11 @@ services:
       - "127.0.0.1:4566:4566"        # LocalStack edge port (all emulated services)
       - "127.0.0.1:4510-4559:4510-4559"  # reserved port range for some services
     environment:
-      - SERVICES=s3,dynamodb,iam,sts,ec2,lambda,events,cloudtrail,secretsmanager,logs
+      - SERVICES=s3,dynamodb,iam,sts,ec2,lambda,events,secretsmanager,logs,kms,cloudwatch,cloudtrail,config
       - DEBUG=0
       - PERSISTENCE=1                # keep state between container restarts
       - DOCKER_HOST=unix:///var/run/docker.sock
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
     volumes:
       - "./.localstack-volume:/var/lib/localstack"
       - "/var/run/docker.sock:/var/run/docker.sock"
