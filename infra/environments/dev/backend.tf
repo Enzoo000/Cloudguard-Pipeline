@@ -6,10 +6,10 @@
 
 terraform {
   backend "s3" {
-    bucket         = "secure-pipeline-tf-state"
+    bucket         = "cloudguard-tf-state"
     key            = "dev/terraform.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "secure-pipeline-tf-lock"
+    dynamodb_table = "cloudguard-tf-lock"
 
     access_key                  = "test"
     secret_key                  = "test"

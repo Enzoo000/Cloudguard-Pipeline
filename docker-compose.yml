@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   localstack:
-    container_name: localstack-secure-pipeline
+    container_name: localstack-cloudguard
     image: localstack/localstack:latest
     ports:
       - "127.0.0.1:4566:4566"        # LocalStack edge port (all emulated services)

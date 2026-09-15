@@ -6,10 +6,10 @@
 # IAM/governance modules.
 
 resource "aws_s3_bucket" "day1_smoke_test" {
-  bucket = "secure-pipeline-day1-smoke-test"
+  bucket = "cloudguard-day1-smoke-test"
 
   tags = {
-    Project = "secure-pipeline"
+    Project = "cloudguard-pipeline"
     Purpose = "day1-backend-verification"
   }
 }

@@ -1,4 +1,6 @@
-# Secure CI/CD Pipeline for a Containerized App on AWS (LocalStack)
+# CloudGuard Pipeline
+
+A secure CI/CD pipeline for a containerized app on AWS (LocalStack)
 
 A cloud security / DevSecOps portfolio project: a small Spring Boot app deployed
 through a security-gated CI/CD pipeline onto AWS infrastructure defined as code.
@@ -43,7 +45,7 @@ docs/
      IAM, STS, EC2, Lambda, EventBridge, CloudTrail, and Secrets Manager on
      `localhost:4566`
    - Runs `infra/bootstrap` (using a local Terraform backend) to create the
-     `secure-pipeline-tf-state` S3 bucket and `secure-pipeline-tf-lock`
+     `cloudguard-tf-state` S3 bucket and `cloudguard-tf-lock`
      DynamoDB table *inside* LocalStack
    - Switches to `infra/environments/dev`, points it at that new remote
      backend, and applies a one-resource smoke test to confirm the whole
@@ -56,7 +58,7 @@ docs/
    aws --endpoint-url=http://localhost:4566 s3 ls
    ```
 
-   You should see `secure-pipeline-tf-state` and `secure-pipeline-day1-smoke-test`
+   You should see `cloudguard-tf-state` and `cloudguard-day1-smoke-test`
    listed.
 
 **What "done" looks like for Day 1:** LocalStack running, Terraform remote

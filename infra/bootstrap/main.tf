@@ -31,10 +31,10 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "tf_state" {
-  bucket = "secure-pipeline-tf-state"
+  bucket = "cloudguard-tf-state"
 
   tags = {
-    Project = "secure-pipeline"
+    Project = "cloudguard-pipeline"
     Purpose = "terraform-remote-state"
   }
 }
@@ -48,7 +48,7 @@ resource "aws_s3_bucket_versioning" "tf_state_versioning" {
 }
 
 resource "aws_dynamodb_table" "tf_lock" {
-  name         = "secure-pipeline-tf-lock"
+  name         = "cloudguard-tf-lock"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "LockID"
 
@@ -58,7 +58,7 @@ resource "aws_dynamodb_table" "tf_lock" {
   }
 
   tags = {
-    Project = "secure-pipeline"
+    Project = "cloudguard-pipeline"
     Purpose = "terraform-state-locking"
   }
 }
