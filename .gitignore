@@ -1,0 +1,38 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
+override.tf
+override.tf.json
+.terraform.lock.hcl
+
+# LocalStack
+.localstack-volume/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Node
+node_modules/
+
+# Java / Spring Boot
+target/
+*.class
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Security scan outputs (keep screenshots in docs/findings, not raw scan dumps)
+*-scan-results.json
+*-scan-results.sarif

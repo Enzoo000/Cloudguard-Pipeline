@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  localstack:
+    container_name: localstack-secure-pipeline
+    image: localstack/localstack:latest
+    ports:
+      - "127.0.0.1:4566:4566"        # LocalStack edge port (all emulated services)
+      - "127.0.0.1:4510-4559:4510-4559"  # reserved port range for some services
+    environment:
+      - SERVICES=s3,dynamodb,iam,sts,ec2,lambda,events,cloudtrail,secretsmanager,logs
+      - DEBUG=0
+      - PERSISTENCE=1                # keep state between container restarts
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - "./.localstack-volume:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
