@@ -1,6 +1,5 @@
 # Automated Cloud Security Remediation with IaC Scanning and Admission Control
 
-
 A secure CI/CD pipeline for a containerized app on AWS (LocalStack)
 
 A cloud security / DevSecOps portfolio project: a small Spring Boot app deployed
@@ -25,35 +24,22 @@ beyond a teammate glancing at a pull request.
 
 ## Solution
 
-CloudGuard Pipeline closes that gap by enforcing security at three
-checkpoints instead of one. It is demonstrated end to end against a
-realistic target: a customer analytics and reporting SaaS product called
-Northbound Analytics, deployed on Terraform managed AWS infrastructure.
+This project closes that gap by enforcing security at three checkpoints
+instead of one, demonstrated end to end against a realistic target: a
+customer analytics and reporting SaaS product called Northbound Analytics,
+deployed on Terraform managed AWS infrastructure.
 
-Before deployment, the infrastructure code and the application's container
-image are scanned for known misconfigurations and vulnerabilities using
-Checkov and Trivy. Every planned infrastructure change is also evaluated
-against policy as code using OPA and conftest, run against the terraform
-plan output, before it is allowed to apply.
+Before deployment, Checkov and Trivy scan the infrastructure code and
+container image for known issues, and OPA with conftest evaluates every
+planned change against policy before it can apply. Only changes that pass
+every gate reach LocalStack, where the pipeline runs at zero cost and zero
+risk to a real AWS account. After deployment, CloudTrail and Config watch
+for drift, including a deliberately injected manual change that bypasses
+the pipeline, and a Boto3 script automatically remediates it.
 
-At deployment, only changes that pass every gate reach LocalStack. The
-entire pipeline runs against this free local AWS emulator so it costs
-nothing and carries zero risk to a real account. Only the two managed
-services LocalStack cannot emulate, GuardDuty and Security Hub, run against
-a small budget capped real AWS footprint.
-
-After deployment, CloudTrail and Config continuously monitor the live
-infrastructure for drift. This includes a deliberately injected manual
-change that bypasses the pipeline entirely to simulate a real developer
-mistake. A Boto3 remediation script automatically detects and fixes that
-drift, closing the loop instead of leaving it as a backlog item.
-
-A separate reporting dashboard consumes the output of all three
-checkpoints, including scan results, policy decisions, and remediation
-actions. It presents a live compliance score, an open findings list, and a
-mean time to remediate metric, turning three independent security controls
-into one observable and verifiable system instead of three tools no one is
-watching.
+A separate dashboard reports on all three checkpoints: scan results,
+policy decisions, and remediation actions, presented as a live compliance
+score, an open findings list, and a mean time to remediate metric.
 
 ## Repo layout
 
