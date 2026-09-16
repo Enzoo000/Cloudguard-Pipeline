@@ -9,11 +9,50 @@ effectively $0, with a short, clearly-labeled window on real AWS for the two or
 three managed services (GuardDuty, Security Hub) that LocalStack's free tier
 doesn't emulate.
 
-## Why this exists
+## Problem
 
-A working repo that backs up a resume, rather than a resume that just claims
-these skills. Every module here maps to a real control: least-privilege IAM,
-policy-as-code, container hardening, SAST/DAST gates, and automated remediation.
+Cloud misconfigurations such as overly permissive IAM roles, unencrypted or
+public storage, and unpatched container images remain the leading cause of
+cloud security breaches. Most teams only catch them after the fact through a
+scheduled audit, a manual review, or an incident. By the time a
+misconfiguration is discovered it may have been live in production for
+weeks, and fixing it depends on someone noticing, filing a ticket, and
+eventually getting to it. Small teams shipping SaaS products feel this most
+acutely since they rarely have a dedicated security engineer, so
+infrastructure and application changes go out with no automated check
+beyond a teammate glancing at a pull request.
+
+## Solution
+
+CloudGuard Pipeline closes that gap by enforcing security at three
+checkpoints instead of one. It is demonstrated end to end against a
+realistic target: a customer analytics and reporting SaaS product called
+Northbound Analytics, deployed on Terraform managed AWS infrastructure.
+
+Before deployment, the infrastructure code and the application's container
+image are scanned for known misconfigurations and vulnerabilities using
+Checkov and Trivy. Every planned infrastructure change is also evaluated
+against policy as code using OPA and conftest, run against the terraform
+plan output, before it is allowed to apply.
+
+At deployment, only changes that pass every gate reach LocalStack. The
+entire pipeline runs against this free local AWS emulator so it costs
+nothing and carries zero risk to a real account. Only the two managed
+services LocalStack cannot emulate, GuardDuty and Security Hub, run against
+a small budget capped real AWS footprint.
+
+After deployment, CloudTrail and Config continuously monitor the live
+infrastructure for drift. This includes a deliberately injected manual
+change that bypasses the pipeline entirely to simulate a real developer
+mistake. A Boto3 remediation script automatically detects and fixes that
+drift, closing the loop instead of leaving it as a backlog item.
+
+A separate reporting dashboard consumes the output of all three
+checkpoints, including scan results, policy decisions, and remediation
+actions. It presents a live compliance score, an open findings list, and a
+mean time to remediate metric, turning three independent security controls
+into one observable and verifiable system instead of three tools no one is
+watching.
 
 ## Repo layout
 
