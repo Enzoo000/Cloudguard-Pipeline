@@ -1,4 +1,5 @@
-# CloudGuard Pipeline
+# Automated Cloud Security Remediation with IaC Scanning and Admission Control
+
 
 A secure CI/CD pipeline for a containerized app on AWS (LocalStack)
 
