@@ -111,16 +111,25 @@ admission — Kubernetes drift after deploy isn't monitored in this version.
 ## Repo layout
 
 ```
+.github/
+  workflows/           # GitHub Actions: scan gate + admission gate pipelines
 infra/
-  bootstrap/          # one-time: creates the Terraform state bucket + lock table
-  environments/dev/   # the actual project infrastructure (IAM, VPC, etc.)
-app/                  # Spring Boot REST API (added Day 3)
-policies/             # OPA / Kyverno admission policies (added Day 5)
-scripts/              # setup and helper scripts
+  bootstrap/           # one-time: creates the Terraform state bucket + lock table
+  environments/dev/    # AWS infrastructure (IAM, VPC, S3, Secrets Manager)
+k8s/
+  base/                # Deployment, Service manifests for the target app
+  policy/              # RBAC, NetworkPolicy, PodSecurityStandards manifests
+policies/
+  opa/                 # conftest/OPA policies evaluated against terraform plan
+  kyverno/             # Kyverno ClusterPolicy manifests for K8s admission
+app/                   # target app: Northbound Analytics (seeded OWASP flaws)
+dashboard/             # findings/compliance reporting dashboard
+remediation/
+  lambda/              # Python/Boto3 Lambda, triggered by EventBridge
+scripts/               # setup and helper scripts
 docs/
-  findings/           # screenshots of scan/posture results
-  threat-model.md     # STRIDE pass (added Day 7)
-  architecture.png    # architecture diagram (added Day 7)
+  findings/            # screenshots of scan/posture results
+  threat-model.md      # STRIDE pass (added Day 7)
 ```
 
 ## Day 1 — Environment Setup
