@@ -41,6 +41,73 @@ A separate dashboard reports on all three checkpoints: scan results,
 policy decisions, and remediation actions, presented as a live compliance
 score, an open findings list, and a mean time to remediate metric.
 
+## Architecture Diagram
+
+```mermaid
+%%{init: {"flowchart": {"nodeSpacing": 45, "rankSpacing": 65}, "themeVariables": {"fontSize": "18px"}}}%%
+flowchart LR
+  subgraph App["Application Layer"]
+    direction TB
+    Dev["Developer Commit"]
+    CLI["Manual AWS CLI Change"]
+  end
+
+  Scan["1) Scan Gate: Checkov + Trivy"]:::checkpoint
+
+  subgraph Admission["2) Deploy-Time Admission"]
+    direction TB
+    OPAGate["2a) OPA / Conftest: Terraform plan"]:::checkpoint
+    KyvernoGate["2b) Kyverno: K8s manifests"]:::checkpoint
+  end
+
+  subgraph Cloud["LocalStack Sandbox"]
+    direction TB
+    TF["Target Infra State"]:::orange
+    Journal["3) CloudTrail + Config"]:::green
+  end
+
+  K8s["Minikube: App Pods · RBAC · NetPol · PSS"]:::orange
+  Score["Drift Finding"]:::red
+
+  subgraph Remediate["Event-Driven Remediation"]
+    direction TB
+    EB["EventBridge"]
+    Lambda["Lambda: Python/Boto3"]
+  end
+
+  Log["Remediation Log"]:::teal
+  Dash["Dashboard App"]
+
+  Dev --> Scan
+  Scan --> OPAGate
+  Scan --> KyvernoGate
+  OPAGate --> TF
+  KyvernoGate --> K8s
+  CLI -.->|bypasses gates| TF
+  TF --> Journal
+  Journal --> Score
+  Journal --> EB
+  Journal --> Log
+  EB --> Lambda
+  Lambda -.->|writes fix back| TF
+  Lambda --> Dash
+
+  classDef orange fill:#e8974a,stroke:#8a5a1f,color:#1c1c1f
+  classDef green fill:#2f7a4f,stroke:#1c4a30,color:#ffffff
+  classDef teal fill:#4fb8ad,stroke:#2a6e66,color:#0c1f1d
+  classDef red fill:#d9645f,stroke:#8a2e2a,color:#ffffff
+  classDef checkpoint fill:#3f6fd1,stroke:#24437d,color:#ffffff
+```
+
+Checkov and Trivy gate both deploy paths at checkpoint 1, then the path splits:
+OPA/Conftest gates everything landing in LocalStack (2a) while Kyverno gates
+everything landing in Minikube (2b). CloudTrail and Config are checkpoint 3,
+catching what the first two missed, including the manual CLI change shown as
+the dashed bypass edge. Detection fires remediation through EventBridge and a
+Lambda function instead of a polling script, and its dashed edge back into
+Target Infra State is the fix actually landing. Kyverno only guards
+admission — Kubernetes drift after deploy isn't monitored in this version.
+
 ## Repo layout
 
 ```
