@@ -1,0 +1,8 @@
+Northbound Analytics — Sample Export
+Customer: acme-co
+Generated: quarterly report placeholder
+
+This file exists so GET /exports/sample-report.txt has something real to
+return. It also demonstrates the seeded path traversal flaw in
+ReportController#export: a request for a filename containing "../"
+escapes this directory entirely.

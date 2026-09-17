@@ -1,0 +1,20 @@
+This directory adapts small, specific vulnerability patterns (a handful
+of lines each) from ScaleSec/vulnado, used under the Apache License,
+Version 2.0:
+
+  https://github.com/ScaleSec/vulnado
+  Copyright 2020 ScaleSec
+  Licensed under the Apache License, Version 2.0
+  (http://www.apache.org/licenses/LICENSE-2.0)
+
+Specifically adapted:
+  - The JWT issue/verify pattern (secret pulled from a config value via
+    @Value, used to sign/verify tokens) — see AuthUtil.java, originally
+    vulnado's User.token() / User.assertAuth().
+  - The unsalted MD5 password check on login — see LoginController.java,
+    originally vulnado's Postgres.md5() / LoginController.
+
+All code in this directory has been rewritten around Northbound
+Analytics' own domain (reports, not comments/cows) and none of
+vulnado's other exercises (XSS, SSRF, RCE/reverse shell) or its React
+client are used here.
