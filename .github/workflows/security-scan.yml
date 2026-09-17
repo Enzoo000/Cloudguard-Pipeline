@@ -8,8 +8,16 @@ name: Security Scan Gate
 on:
   push:
     branches: [main]
+    paths:
+      - "infra/environments/dev/**"
+      - "app/**"
+      - ".github/workflows/security-scan.yml"
   pull_request:
     branches: [main]
+    paths:
+      - "infra/environments/dev/**"
+      - "app/**"
+      - ".github/workflows/security-scan.yml"
 
 jobs:
   checkov:
