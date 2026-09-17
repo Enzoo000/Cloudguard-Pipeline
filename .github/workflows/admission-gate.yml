@@ -35,19 +35,16 @@ jobs:
           - 4566:4566
         env:
           SERVICES: s3,dynamodb,iam,sts,ec2
-        # LocalStack's own image ships a strict built-in HEALTHCHECK.
-        # GitHub's "Initialize containers" step waits on that healthcheck
-        # before the job proceeds at all, and LocalStack can take longer
-        # to become ready than that check allows — the job was failing
-        # here before any of our own steps ran. Override it with a
-        # trivial always-pass check and let the "Wait for LocalStack"
-        # step below (real curl polling) be the actual readiness gate.
-        options: >-
-          --health-cmd "true"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 1
-          --health-start-period 1s
+        # LocalStack's own image ships a strict built-in HEALTHCHECK, and
+        # GitHub's "Initialize containers" step waits on that health
+        # status before the job proceeds at all — it was failing here
+        # before any of our own steps ran. A --health-cmd "true" override
+        # still reported unhealthy for reasons that weren't worth
+        # chasing further, so disable health checking outright instead:
+        # with no healthcheck defined, GitHub just confirms the
+        # container is running and moves on. The "Wait for LocalStack"
+        # step below (real curl polling) is the actual readiness gate.
+        options: --no-healthcheck
 
     steps:
       - uses: actions/checkout@v4
