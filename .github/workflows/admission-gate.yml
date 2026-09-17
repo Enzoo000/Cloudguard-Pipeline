@@ -1,0 +1,73 @@
+name: Deploy-Time Admission Gate
+
+# Phase 4a — evaluates the actual terraform plan (not just static source,
+# which is Checkov's job in Phase 3) against OPA/conftest policies.
+# Needs a real terraform plan, which needs a real LocalStack to plan
+# against — so LocalStack runs as a disposable service container for the
+# duration of this job, not something borrowed from any long-lived
+# instance. Self-contained, same as any other CI job.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/bootstrap/**"
+      - "infra/environments/dev/**"
+      - "policies/opa/**"
+      - ".github/workflows/admission-gate.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/bootstrap/**"
+      - "infra/environments/dev/**"
+      - "policies/opa/**"
+      - ".github/workflows/admission-gate.yml"
+
+jobs:
+  opa-conftest:
+    name: OPA / conftest (terraform plan)
+    runs-on: ubuntu-latest
+
+    services:
+      localstack:
+        image: localstack/localstack:latest
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: s3,dynamodb,iam,sts,ec2
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.2"
+
+      - name: Install conftest
+        run: |
+          curl -sL https://github.com/open-policy-agent/conftest/releases/download/v0.70.0/conftest_0.70.0_Linux_x86_64.tar.gz | tar xz
+          sudo mv conftest /usr/local/bin/
+
+      - name: Wait for LocalStack
+        run: |
+          for i in $(seq 1 30); do
+            curl -s http://localhost:4566/_localstack/health | grep -q '"s3": "available"' && break
+            sleep 2
+          done
+
+      - name: Bootstrap the remote state backend
+        working-directory: infra/bootstrap
+        run: |
+          terraform init
+          terraform apply -auto-approve
+
+      - name: Plan the dev environment
+        working-directory: infra/environments/dev
+        run: |
+          terraform init
+          terraform plan -out=tfplan.binary
+          terraform show -json tfplan.binary > tfplan.json
+
+      - name: Run conftest against the plan
+        run: conftest test --policy policies/opa infra/environments/dev/tfplan.json
