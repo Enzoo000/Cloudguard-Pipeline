@@ -1,0 +1,60 @@
+name: Security Scan Gate
+
+# Phase 3 — pre-deploy scanning. Checkov scans the raw Terraform source
+# (no `terraform init`, so this never needs to reach LocalStack) and
+# Trivy scans the Docker image built from app/. Either job failing fails
+# this workflow — that's the fail-closed gate.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  checkov:
+    name: Checkov (IaC scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Checkov against infra/environments/dev
+        id: checkov
+        uses: bridgecrewio/checkov-action@v12.2934.0
+        with:
+          directory: infra/environments/dev
+          quiet: true
+          output_format: cli,sarif
+          output_file_path: console,checkov-results.sarif
+
+      - name: Upload Checkov results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkov-results
+          path: checkov-results.sarif
+
+  trivy:
+    name: Trivy (image scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the app image
+        run: docker build -t northbound-analytics:ci app/
+
+      - name: Run Trivy against the built image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: northbound-analytics:ci
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+
+      - name: Upload Trivy results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-results
+          path: trivy-results.sarif
