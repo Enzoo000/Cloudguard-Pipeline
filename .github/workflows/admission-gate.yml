@@ -28,26 +28,34 @@ jobs:
     name: OPA / conftest (terraform plan)
     runs-on: ubuntu-latest
 
-    services:
-      localstack:
-        image: localstack/localstack:latest
-        ports:
-          - 4566:4566
-        env:
-          SERVICES: s3,dynamodb,iam,sts,ec2
-        # LocalStack's own image ships a strict built-in HEALTHCHECK, and
-        # GitHub's "Initialize containers" step waits on that health
-        # status before the job proceeds at all — it was failing here
-        # before any of our own steps ran. A --health-cmd "true" override
-        # still reported unhealthy for reasons that weren't worth
-        # chasing further, so disable health checking outright instead:
-        # with no healthcheck defined, GitHub just confirms the
-        # container is running and moves on. The "Wait for LocalStack"
-        # step below (real curl polling) is the actual readiness gate.
-        options: --no-healthcheck
+    # LocalStack is started as an ordinary step below rather than through
+    # `services:`. GitHub's service-container machinery gates the whole
+    # job on Docker health status before any step runs, and it breaks
+    # both ways with this image: the image's own strict HEALTHCHECK times
+    # out, and --no-healthcheck makes the runner's own inspect template
+    # fail (Config.Healthcheck is set to {"Test":["NONE"]}, which is
+    # truthy, but State.Health then doesn't exist). Starting the
+    # container ourselves avoids that path entirely and leaves readiness
+    # to the curl-polling step, which is the only check that actually
+    # matters here.
 
     steps:
       - uses: actions/checkout@v4
+
+      # Pinned to 4.0 (community edition) on purpose: localstack:latest
+      # now requires a LOCALSTACK_AUTH_TOKEN and exits with code 55 the
+      # moment it starts without one, which is what was actually failing
+      # here — not the healthchecks it looked like at first. 4.0 runs
+      # token-free and still provides every service this plan needs
+      # (s3, dynamodb, iam, sts, ec2), verified against its health
+      # endpoint. Local development still uses :latest with the token
+      # from .env; only CI needs the token-free pin.
+      - name: Start LocalStack
+        run: |
+          docker run -d --name localstack \
+            -p 4566:4566 \
+            -e SERVICES=s3,dynamodb,iam,sts,ec2 \
+            localstack/localstack:4.0
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
@@ -61,10 +69,16 @@ jobs:
 
       - name: Wait for LocalStack
         run: |
-          for i in $(seq 1 30); do
-            curl -s http://localhost:4566/_localstack/health | grep -q '"s3": "available"' && break
+          for i in $(seq 1 45); do
+            if curl -s http://localhost:4566/_localstack/health | grep -q '"s3": "available"'; then
+              echo "LocalStack ready after ~$((i * 2))s"
+              exit 0
+            fi
             sleep 2
           done
+          echo "LocalStack did not become ready within 90s. Container logs:"
+          docker logs localstack
+          exit 1
 
       - name: Bootstrap the remote state backend
         working-directory: infra/bootstrap
