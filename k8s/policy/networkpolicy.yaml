@@ -1,0 +1,51 @@
+# Default-deny everything in the namespace, then explicitly allow only
+# what's actually needed: DNS resolution for every pod (without this,
+# nothing in the namespace can resolve any name at all — confirmed
+# directly: a test pod's `nslookup` timed out until this rule was
+# added) and inbound traffic to the app on port 8080. Everything else
+# is blocked unless a future policy adds it.
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: northbound-default-deny
+  namespace: northbound
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: northbound-allow-dns-egress
+  namespace: northbound
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: northbound-allow-app-ingress
+  namespace: northbound
+spec:
+  podSelector:
+    matchLabels:
+      app: northbound-analytics
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080

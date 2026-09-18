@@ -1,0 +1,20 @@
+# k8s/base/namespace.yaml
+#
+# Enforce level is "baseline", not "restricted" — this is native
+# Kubernetes Pod Security Standards, enforced by the API server itself
+# with no admission controller needed. "restricted" would hard-block
+# any pod missing a full securityContext before it's even created,
+# which would collide with Kyverno's job in Phase 4b: Kyverno is meant
+# to be the thing that catches and reports the seeded gaps in
+# deployment.yaml (floating image tag, missing resource limits), not
+# have the API server silently reject them first. "baseline" still
+# blocks genuinely dangerous things (privileged containers, hostNetwork,
+# hostPID) as a real safety net underneath Kyverno.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: northbound
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted

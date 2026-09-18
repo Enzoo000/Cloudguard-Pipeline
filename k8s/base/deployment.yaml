@@ -1,0 +1,57 @@
+# k8s/base/deployment.yaml
+#
+# Two seeded gaps here, mirroring the pattern used everywhere else in
+# this project: real, working config with deliberate flaws for the
+# admission layer (Kyverno, in policies/kyverno/) to catch.
+#
+# SEEDED FLAW 1: the image tag is "latest" — a floating tag, so nobody
+# can tell what code is actually deployed or reproduce a past state.
+# SEEDED FLAW 2: no resources.requests/limits — an unbounded container
+# can starve every other pod on the node.
+#
+# securityContext IS set properly here (non-root, no privilege
+# escalation, all capabilities dropped) — that part is intentionally
+# correct, not seeded, so the namespace's baseline PSS doesn't block
+# this from even being created. The two flaws above are Kyverno's job.
+#
+# runAsUser: 100 matches the numeric UID of the "app" user created in
+# app/Dockerfile (confirmed via `docker run --entrypoint id`). Without
+# an explicit numeric UID here, the kubelet refuses to start the pod at
+# all — it can't verify a non-numeric USER is actually non-root without
+# running the container first, which it won't do.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: northbound-analytics
+  namespace: northbound
+  labels:
+    app: northbound-analytics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: northbound-analytics
+  template:
+    metadata:
+      labels:
+        app: northbound-analytics
+    spec:
+      serviceAccountName: northbound-app
+      containers:
+        - name: app
+          # SEEDED FLAW: floating tag, see policies/kyverno/disallow-latest-tag.yaml
+          image: northbound-analytics:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 100
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          # SEEDED FLAW: no resources block, see
+          # policies/kyverno/require-resource-limits.yaml

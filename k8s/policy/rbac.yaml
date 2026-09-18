@@ -1,0 +1,26 @@
+# Least-privilege RBAC for the app's ServiceAccount: an empty rules
+# list. The app never calls the Kubernetes API, so it gets zero
+# permissions — not "read-only," not "just its own pod," nothing.
+# The Role exists so there's a real, explicit RBAC object to point to
+# rather than relying on the implicit absence of one.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: northbound-app-role
+  namespace: northbound
+rules: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: northbound-app-rolebinding
+  namespace: northbound
+subjects:
+  - kind: ServiceAccount
+    name: northbound-app
+    namespace: northbound
+roleRef:
+  kind: Role
+  name: northbound-app-role
+  apiGroup: rbac.authorization.k8s.io

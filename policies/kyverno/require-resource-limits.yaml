@@ -1,0 +1,31 @@
+# Blocks any pod-creating resource where a container is missing
+# resources.requests or resources.limits. Mirrors the second seeded
+# flaw in k8s/base/deployment.yaml — an unbounded container can starve
+# every other pod on the node.
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resource-limits
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-requests-and-limits
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "Every container must set resources.requests and resources.limits (cpu and memory)."
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  requests:
+                    cpu: "?*"
+                    memory: "?*"
+                  limits:
+                    cpu: "?*"
+                    memory: "?*"

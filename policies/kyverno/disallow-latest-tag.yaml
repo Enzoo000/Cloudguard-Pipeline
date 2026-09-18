@@ -1,0 +1,31 @@
+# Blocks any pod-creating resource whose container image uses the
+# ":latest" tag, or has no tag at all (which defaults to :latest).
+# Mirrors the seeded flaw in k8s/base/deployment.yaml
+# (image: northbound-analytics:latest) — same pattern as the OPA
+# policies in Phase 4a, now applied to Kubernetes manifests instead of
+# a terraform plan.
+#
+# validationFailureAction: Enforce means this actually blocks the
+# `kubectl apply`, not just reports a warning — fail-closed, same as
+# every other gate in this project.
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-latest-tag
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-image-tag
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "Images must not use the \":latest\" tag or be untagged - pin to a specific version."
+        pattern:
+          spec:
+            containers:
+              - image: "!*:latest"
