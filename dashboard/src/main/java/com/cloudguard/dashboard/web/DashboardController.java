@@ -24,6 +24,7 @@ public class DashboardController {
     model.addAttribute("freshness", metrics.freshness());
     model.addAttribute("remediations", metrics.remediationLog());
     model.addAttribute("avgMttr", metrics.averageMttrSeconds().orElse(null));
+    model.addAttribute("invalidMttr", metrics.invalidMttrRecords());
     return "dashboard";
   }
 }

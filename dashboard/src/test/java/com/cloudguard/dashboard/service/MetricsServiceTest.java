@@ -108,4 +108,27 @@ class MetricsServiceTest {
   void mttrIsAbsentUntilARemediationIsRecorded() {
     assertEquals(Optional.empty(), metrics.averageMttrSeconds());
   }
+
+  /**
+   * Regression: a record whose fix predates its trigger is impossible
+   * (clock skew or a malformed timestamp) and must not be averaged in.
+   * One such record previously produced a reported MTTR of -8s.
+   */
+  @Test
+  void negativeDurationsAreExcludedFromMttr() {
+    Instant now = Instant.now();
+    ingestion.ingestRemediation(
+        new com.cloudguard.dashboard.dto.RemediationSubmission(
+            "key-good", "bucket", "rule", now.minusSeconds(30), now, "fixed"));
+    // triggeredAt AFTER remediatedAt — impossible.
+    ingestion.ingestRemediation(
+        new com.cloudguard.dashboard.dto.RemediationSubmission(
+            "key-bad", "bucket", "rule", now.plusSeconds(500), now, "bad timestamps"));
+
+    assertEquals(1, metrics.invalidMttrRecords());
+    assertEquals(
+        30L,
+        metrics.averageMttrSeconds().orElseThrow(),
+        "the impossible record must not drag the average");
+  }
 }

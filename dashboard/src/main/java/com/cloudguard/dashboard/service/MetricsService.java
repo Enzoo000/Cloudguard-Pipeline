@@ -92,14 +92,31 @@ public class MetricsService {
     return remediations.findAllByOrderByRemediatedAtDesc();
   }
 
-  /** Average seconds from triggering event to fix, across all recorded remediations. */
+  /**
+   * Average seconds from triggering event to fix.
+   *
+   * Records with a negative duration are excluded rather than averaged
+   * in. A fix cannot land before the event that caused it, so a negative
+   * value means bad input — clock skew between the event source and the
+   * remediator, or a malformed timestamp. Averaging it in silently drags
+   * the headline metric toward nonsense (observed: a single bad record
+   * produced a reported MTTR of -8s).
+   */
   public Optional<Long> averageMttrSeconds() {
-    List<Remediation> all = remediations.findAll();
-    if (all.isEmpty()) {
+    List<Long> valid =
+        remediations.findAll().stream()
+            .map(Remediation::mttrSeconds)
+            .filter(seconds -> seconds >= 0)
+            .toList();
+    if (valid.isEmpty()) {
       return Optional.empty();
     }
-    long total = all.stream().mapToLong(Remediation::mttrSeconds).sum();
-    return Optional.of(total / all.size());
+    return Optional.of(valid.stream().mapToLong(Long::longValue).sum() / valid.size());
+  }
+
+  /** How many remediation records were rejected from the MTTR average as impossible. */
+  public long invalidMttrRecords() {
+    return remediations.findAll().stream().filter(r -> r.mttrSeconds() < 0).count();
   }
 
   /**

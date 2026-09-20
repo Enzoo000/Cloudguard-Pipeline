@@ -55,6 +55,8 @@
       <div class="value" th:if="${avgMttr != null}" th:text="${avgMttr} + 's'">—</div>
       <div class="value" th:if="${avgMttr == null}" style="color:var(--dim)">—</div>
       <div class="note" th:text="${#lists.size(remediations)} + ' automated fixes recorded'"></div>
+      <div class="note" th:if="${invalidMttr > 0}" style="color:var(--warn)"
+           th:text="${invalidMttr} + ' excluded (fix predates its trigger)'"></div>
     </div>
   </div>
 
