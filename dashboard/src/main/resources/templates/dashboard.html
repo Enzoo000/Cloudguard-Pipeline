@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8">
+  <title>CloudGuard Security Posture</title>
+  <style>
+    :root { --bg:#fff; --fg:#16232a; --dim:#5b6b72; --line:#d7dde0; --bad:#c0392b; --ok:#2f7a4f; --warn:#b8860b; }
+    * { box-sizing: border-box; }
+    body { margin:0; padding:2rem 1.25rem; background:var(--bg); color:var(--fg);
+           font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    .wrap { max-width:1100px; margin:0 auto; }
+    h1 { font-size:1.4rem; margin:0 0 .25rem; }
+    .sub { color:var(--dim); font-size:.9rem; margin:0 0 1.75rem; }
+    h2 { font-size:1rem; margin:2rem 0 .75rem; }
+    .tiles { display:flex; gap:1rem; flex-wrap:wrap; }
+    .tile { border:1px solid var(--line); border-radius:10px; padding:1rem 1.25rem; min-width:190px; flex:1; }
+    .tile .label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); }
+    .tile .value { font-size:1.9rem; font-weight:600; margin-top:.25rem; font-variant-numeric:tabular-nums; }
+    .tile .note { font-size:.78rem; color:var(--dim); margin-top:.15rem; }
+    table { width:100%; border-collapse:collapse; font-size:.86rem; }
+    th, td { text-align:left; padding:.5rem .6rem; border-bottom:1px solid var(--line); vertical-align:top; }
+    th { font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); font-weight:600; }
+    td.num { font-variant-numeric:tabular-nums; }
+    .pill { display:inline-block; padding:.1rem .5rem; border-radius:999px; font-size:.72rem; font-weight:600; }
+    .pill-bad { background:#fbeae8; color:var(--bad); }
+    .pill-ok { background:#e9f5ee; color:var(--ok); }
+    .pill-warn { background:#fbf3e0; color:var(--warn); }
+    .empty { color:var(--dim); font-size:.86rem; font-style:italic; padding:.5rem .6rem; }
+    .msg { color:var(--dim); max-width:56ch; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CloudGuard Security Posture</h1>
+  <p class="sub">Findings from every gate in the pipeline, plus what was fixed automatically.</p>
+
+  <div class="tiles">
+    <div class="tile">
+      <div class="label">Compliance score</div>
+      <div class="value" th:if="${score != null}" th:text="${score} + '%'">—</div>
+      <div class="value" th:if="${score == null}" style="color:var(--dim)">no data</div>
+      <div class="note" th:if="${score != null}"
+           th:text="${openPolicyFindings} + ' open of ' + ${totalPolicyChecks} + ' policy checks'"></div>
+      <div class="note" th:if="${score == null}">No policy scanner has reported a conclusive run</div>
+    </div>
+
+    <div class="tile">
+      <div class="label">Open vulnerabilities</div>
+      <div class="value" th:text="${openVulnerabilities}">0</div>
+      <div class="note">Trivy — excluded from the score above</div>
+    </div>
+
+    <div class="tile">
+      <div class="label">Mean time to remediate</div>
+      <div class="value" th:if="${avgMttr != null}" th:text="${avgMttr} + 's'">—</div>
+      <div class="value" th:if="${avgMttr == null}" style="color:var(--dim)">—</div>
+      <div class="note" th:text="${#lists.size(remediations)} + ' automated fixes recorded'"></div>
+    </div>
+  </div>
+
+  <h2>Scanner freshness</h2>
+  <table>
+    <thead>
+    <tr><th>Source</th><th>Last run</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+    <tr th:each="f : ${freshness}">
+      <td th:text="${f.source()}">SOURCE</td>
+      <td th:text="${f.lastRanAt() != null ? #temporals.format(f.lastRanAt(), 'yyyy-MM-dd HH:mm') : '—'}">—</td>
+      <td>
+        <span th:if="${f.neverRan()}" class="pill pill-warn">never run</span>
+        <span th:if="${!f.neverRan() and f.status().name() == 'INCONCLUSIVE'}" class="pill pill-bad">inconclusive</span>
+        <span th:if="${!f.neverRan() and f.stale()}" class="pill pill-warn">stale</span>
+        <span th:if="${!f.neverRan() and !f.stale() and f.status().name() == 'COMPLETE'}" class="pill pill-ok">ok</span>
+      </td>
+    </tr>
+    </tbody>
+  </table>
+
+  <h2>Open findings</h2>
+  <table>
+    <thead>
+    <tr><th>Source</th><th>Resource</th><th>Rule</th><th>Severity</th><th>Message</th><th>First seen</th></tr>
+    </thead>
+    <tbody>
+    <tr th:each="f : ${findings}">
+      <td th:text="${f.source}">SOURCE</td>
+      <td th:text="${f.resource}">resource</td>
+      <td th:text="${f.ruleId}">rule</td>
+      <td th:text="${f.severity != null ? f.severity : '—'}">—</td>
+      <td class="msg" th:text="${f.message}">message</td>
+      <td th:text="${f.firstSeenAt != null ? #temporals.format(f.firstSeenAt, 'yyyy-MM-dd HH:mm') : '—'}">—</td>
+    </tr>
+    <tr th:if="${#lists.isEmpty(findings)}">
+      <td colspan="6" class="empty">No open findings recorded.</td>
+    </tr>
+    </tbody>
+  </table>
+
+  <h2>Automated remediations</h2>
+  <table>
+    <thead>
+    <tr><th>Resource</th><th>Rule</th><th>Triggered</th><th>Remediated</th><th>MTTR</th></tr>
+    </thead>
+    <tbody>
+    <tr th:each="r : ${remediations}">
+      <td th:text="${r.resource}">resource</td>
+      <td th:text="${r.rule}">rule</td>
+      <td th:text="${r.triggeredAt != null ? #temporals.format(r.triggeredAt, 'yyyy-MM-dd HH:mm:ss') : '—'}">—</td>
+      <td th:text="${r.remediatedAt != null ? #temporals.format(r.remediatedAt, 'yyyy-MM-dd HH:mm:ss') : '—'}">—</td>
+      <td class="num" th:text="${r.mttrSeconds()} + 's'">0s</td>
+    </tr>
+    <tr th:if="${#lists.isEmpty(remediations)}">
+      <td colspan="5" class="empty">No remediations recorded.</td>
+    </tr>
+    </tbody>
+  </table>
+</div>
+</body>
+</html>
