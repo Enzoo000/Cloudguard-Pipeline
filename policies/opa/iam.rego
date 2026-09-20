@@ -12,7 +12,12 @@ deny contains msg if {
 	policy := json.unmarshal(after.policy)
 	stmt := policy.Statement[_]
 	stmt.Action == "*"
-	msg := sprintf("%v: IAM policy statement grants wildcard Action \"*\"", [rc.address])
+	msg := {
+		"msg": sprintf("%v: IAM policy statement grants wildcard Action \"*\"", [rc.address]),
+		"ruleId": "OPA_IAM_WILDCARD_ACTION",
+		"resource": rc.address,
+		"severity": "HIGH",
+	}
 }
 
 deny contains msg if {
@@ -22,5 +27,10 @@ deny contains msg if {
 	policy := json.unmarshal(after.policy)
 	stmt := policy.Statement[_]
 	stmt.Resource == "*"
-	msg := sprintf("%v: IAM policy statement grants wildcard Resource \"*\"", [rc.address])
+	msg := {
+		"msg": sprintf("%v: IAM policy statement grants wildcard Resource \"*\"", [rc.address]),
+		"ruleId": "OPA_IAM_WILDCARD_RESOURCE",
+		"resource": rc.address,
+		"severity": "HIGH",
+	}
 }

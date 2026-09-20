@@ -5,6 +5,12 @@ package main
 # CKV2_AWS_6, but runs against the actual terraform plan instead of the
 # raw source — catches this even if the flaw only shows up after
 # variables/interpolation are resolved.
+#
+# Each deny returns an object rather than a bare string so conftest's
+# JSON output carries ruleId/resource/severity as structured metadata.
+# The dashboard fingerprints findings on source+resource+ruleId, so a
+# stable id matters: parsing it back out of the message text would mean
+# rewording a message silently created a "new" finding.
 
 s3_public_access_flags := [
 	"block_public_acls",
@@ -19,5 +25,10 @@ deny contains msg if {
 	after := rc.change.after
 	flag := s3_public_access_flags[_]
 	after[flag] == false
-	msg := sprintf("%v: %v must be true, found false (public access block disabled)", [rc.address, flag])
+	msg := {
+		"msg": sprintf("%v: %v must be true, found false (public access block disabled)", [rc.address, flag]),
+		"ruleId": sprintf("OPA_S3_%v", [upper(flag)]),
+		"resource": rc.address,
+		"severity": "HIGH",
+	}
 }

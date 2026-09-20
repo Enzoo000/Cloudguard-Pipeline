@@ -93,5 +93,23 @@ jobs:
           terraform plan -out=tfplan.binary
           terraform show -json tfplan.binary > tfplan.json
 
+      # JSON output so the dashboard can ingest this run: it carries the
+      # successes count (the score denominator) and structured metadata
+      # per failure (ruleId, resource, severity) that the Rego policies
+      # emit. set +e / explicit exit preserves conftest's non-zero status
+      # so the gate still fails closed while the artifact is still written.
       - name: Run conftest against the plan
-        run: conftest test --policy policies/opa infra/environments/dev/tfplan.json
+        run: |
+          set +e
+          conftest test --policy policies/opa --output json \
+            infra/environments/dev/tfplan.json > opa-results.json
+          conftest_status=$?
+          cat opa-results.json
+          exit $conftest_status
+
+      - name: Upload conftest results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opa-results
+          path: opa-results.json

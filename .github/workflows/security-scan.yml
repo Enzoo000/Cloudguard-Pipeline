@@ -26,21 +26,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # JSON rather than SARIF: SARIF carries only failures, but the
+      # dashboard needs the passed count too — without a denominator a
+      # compliance percentage can't be computed. Checkov's JSON includes
+      # a summary block ({"passed": N, "failed": N, ...}) alongside the
+      # full failed_checks list.
       - name: Run Checkov against infra/environments/dev
         id: checkov
         uses: bridgecrewio/checkov-action@v12.2934.0
         with:
           directory: infra/environments/dev
           quiet: true
-          output_format: cli,sarif
-          output_file_path: console,checkov-results.sarif
+          output_format: cli,json
+          output_file_path: console,checkov-results.json
 
       - name: Upload Checkov results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: checkov-results
-          path: checkov-results.sarif
+          path: checkov-results.json
 
   trivy:
     name: Trivy (image scan)
