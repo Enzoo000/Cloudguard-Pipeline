@@ -54,6 +54,14 @@ resource "aws_iam_role_policy" "remediation" {
         ]
         Resource = aws_s3_bucket.reports.arn
       },
+      # Write-only, and only under the remediations/ prefix. The function
+      # records what it fixed for the dashboard to read; it has no reason
+      # to read anything back out of the audit bucket.
+      {
+        Effect   = "Allow"
+        Action   = ["s3:PutObject"]
+        Resource = "${aws_s3_bucket.audit_logs.arn}/remediations/*"
+      },
     ]
   })
 }
@@ -75,12 +83,20 @@ resource "aws_lambda_function" "remediation" {
   source_code_hash = data.archive_file.remediation.output_base64sha256
   timeout          = 30
 
-  # No endpoint override here on purpose: LocalStack injects
+  # Deliberately no endpoint override: LocalStack injects
   # LOCALSTACK_HOSTNAME into the container with the address that's
   # actually reachable from inside it, and handler.py builds its S3
   # endpoint from that. An explicit AWS_ENDPOINT_URL pointing at
   # localhost or localhost.localstack.cloud was tried first and made the
   # function hang until timeout — neither resolves from in there.
+  environment {
+    variables = {
+      # Where remediation records are written for the dashboard to read.
+      # Passed in rather than hardcoded so the function isn't coupled to
+      # a literal bucket name.
+      AUDIT_BUCKET = aws_s3_bucket.audit_logs.bucket
+    }
+  }
 
   tags = {
     Project = "cloudguard-pipeline"
