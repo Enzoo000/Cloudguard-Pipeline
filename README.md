@@ -1,13 +1,13 @@
 # Automated Cloud Security Remediation with IaC Scanning and Admission Control
 
-A secure CI/CD pipeline for a containerized app on AWS (LocalStack)
+A security-gated CI/CD pipeline for a containerized app on AWS
+([LocalStack](https://www.localstack.io/)) and Kubernetes (minikube).
 
-A cloud security / DevSecOps portfolio project: a small Spring Boot app deployed
-through a security-gated CI/CD pipeline onto AWS infrastructure defined as code.
-Built primarily against [LocalStack](https://www.localstack.io/) to keep cost at
-effectively $0, with a short, clearly-labeled window on real AWS for the two or
-three managed services (GuardDuty, Security Hub) that LocalStack's free tier
-doesn't emulate.
+Four checkpoints, each demonstrated working against a deliberately
+vulnerable target: static scanning before deploy, policy-as-code
+admission control on both the Terraform plan and the Kubernetes
+manifest, and event-driven auto-remediation for what gets past them.
+Runs at $0 — no real AWS account, no paid tier.
 
 ## Problem
 
@@ -24,22 +24,26 @@ beyond a teammate glancing at a pull request.
 
 ## Solution
 
-This project closes that gap by enforcing security at three checkpoints
+This project closes that gap by enforcing security at four checkpoints
 instead of one, demonstrated end to end against a realistic target: a
 customer analytics and reporting SaaS product called Northbound Analytics,
-deployed on Terraform managed AWS infrastructure.
+deployed on Terraform managed AWS infrastructure and Kubernetes.
 
-Before deployment, Checkov and Trivy scan the infrastructure code and
-container image for known issues, and OPA with conftest evaluates every
-planned change against policy before it can apply. Only changes that pass
-every gate reach LocalStack, where the pipeline runs at zero cost and zero
-risk to a real AWS account. After deployment, CloudTrail and Config watch
-for drift, including a deliberately injected manual change that bypasses
-the pipeline, and a Boto3 script automatically remediates it.
+Before deployment, Checkov and Trivy scan the infrastructure code and the
+container image. At deploy time the path splits: OPA with conftest
+evaluates the real `terraform plan` before it can apply, and Kyverno
+evaluates Kubernetes manifests as a live admission webhook — a change is
+refused at the API server rather than reported after the fact. After
+deployment, a compliance event routes through EventBridge to a Lambda
+that restores the baseline automatically, covering the case that matters
+most: someone bypassing the pipeline entirely with a direct API call.
 
-A separate dashboard reports on all three checkpoints: scan results,
-policy decisions, and remediation actions, presented as a live compliance
-score, an open findings list, and a mean time to remediate metric.
+A separate dashboard collects findings from every gate and reports a
+live compliance score, the open findings list, and mean time to
+remediate. It is built to refuse to lie: a scanner that crashes is
+recorded as inconclusive rather than clean, because a broken pipeline
+rendering as a green board is the worst failure a security dashboard
+has.
 
 ## Architecture Diagram
 
@@ -126,65 +130,111 @@ app/                   # target app: Northbound Analytics (seeded OWASP flaws)
 dashboard/             # findings/compliance reporting dashboard
 remediation/
   lambda/              # Python/Boto3 Lambda, triggered by EventBridge
-scripts/               # setup and helper scripts
+scripts/
+  setup-day1.sh        # LocalStack + Terraform remote state backend
+  inject-drift.sh      # bypasses the pipeline to trigger the remediation loop
+  sync-findings.py     # pulls findings from every gate into the dashboard
+  demo.sh              # runs all four checkpoints end to end
 docs/
-  findings/            # screenshots of scan/posture results
-  threat-model.md      # STRIDE pass (added Day 7)
+  findings/            # real captured output from each phase
+  threat-model.md      # STRIDE pass, including what is not mitigated
 ```
 
-## Day 1 — Environment Setup
+## Running it
 
-**Prerequisites:** Docker, Terraform >= 1.5, AWS CLI, git.
+**Prerequisites:** Docker, Terraform >= 1.5, AWS CLI, Java 21, Maven,
+minikube, helm, conftest, and `gh` (authenticated). LocalStack Pro is
+*not* required — see "A note on scope".
 
-1. Start LocalStack and bootstrap Terraform state in one step:
+```bash
+# 1. LocalStack + Terraform remote state backend
+./scripts/setup-day1.sh
 
-   ```bash
-   ./scripts/setup-day1.sh
-   ```
+# 2. The rest of the infrastructure (IAM, VPC, S3, Config, CloudTrail,
+#    EventBridge, the remediation Lambda)
+cd infra/environments/dev && terraform init && terraform apply
 
-   This does three things:
-   - Brings up LocalStack (`docker-compose up -d`), emulating S3, DynamoDB,
-     IAM, STS, EC2, Lambda, EventBridge, CloudTrail, and Secrets Manager on
-     `localhost:4566`
-   - Runs `infra/bootstrap` (using a local Terraform backend) to create the
-     `cloudguard-tf-state` S3 bucket and `cloudguard-tf-lock`
-     DynamoDB table *inside* LocalStack
-   - Switches to `infra/environments/dev`, points it at that new remote
-     backend, and applies a one-resource smoke test to confirm the whole
-     chain works end to end
+# 3. Kubernetes + admission control
+minikube start --driver=docker
+helm repo add kyverno https://kyverno.github.io/kyverno/
+helm install kyverno kyverno/kyverno -n kyverno --create-namespace
+kubectl wait --for=condition=Ready pods --all -n kyverno --timeout=180s
+kubectl apply -f k8s/base/namespace.yaml
+kubectl apply -f k8s/base/ -f k8s/policy/ -f policies/kyverno/
 
-2. Verify manually if you want to see it yourself:
+# 4. The dashboard
+cd dashboard && mvn spring-boot:run      # http://localhost:8090
+```
 
-   ```bash
-   curl http://localhost:4566/_localstack/health
-   aws --endpoint-url=http://localhost:4566 s3 ls
-   ```
+Then run the whole thing end to end:
 
-   You should see `cloudguard-tf-state` and `cloudguard-day1-smoke-test`
-   listed.
+```bash
+./scripts/demo.sh
+```
 
-**What "done" looks like for Day 1:** LocalStack running, Terraform remote
-state backend live inside it, and a successful `terraform apply` against
-that backend. Nothing here touches real AWS or costs anything.
+That exercises every checkpoint in order — CI scan results, both
+admission gates refusing a change, a pipeline-bypassing drift injection
+being detected and auto-remediated — and finishes by syncing everything
+into the dashboard.
 
-## Roadmap
+## What each piece does
 
-| Day | Focus |
+| Path | Role |
 |---|---|
-| 1 | Workspace scaffolding + LocalStack setup *(this stage)* |
-| 2 | IAM least-privilege roles, permission boundaries, SCPs, CloudTrail, Config |
-| 3 | VPC segmentation, Spring Boot app with seeded OWASP Top 10 flaws, hardened Dockerfile |
-| 4 | Secrets Manager, Prowler/Checkov posture scans |
-| 5 | GitHub Actions pipeline: Checkov, SonarQube, Snyk, Trivy quality gates; Kyverno/OPA admission policy |
-| 6 | Boto3 remediation script, full pipeline run |
-| 7 | Threat model, architecture diagram, README polish, GitHub launch |
+| `app/` | **The target.** Northbound Analytics, a Spring Boot API with four deliberately seeded flaws (broken auth, SQL injection, path traversal, hardcoded secret). See `app/README.md` for working exploits for each. |
+| `infra/environments/dev/` | The AWS resources being protected, plus the detection and remediation wiring. Carries seeded misconfigurations on purpose. |
+| `.github/workflows/` | Checkpoint 1 (Checkov + Trivy) and checkpoint 2a (OPA/conftest against the terraform plan). Both fail closed. |
+| `policies/opa/` | Rego policies evaluated against a real `terraform plan`. Broader than Checkov here: they check the CIDR itself rather than a fixed port list. |
+| `policies/kyverno/` | Checkpoint 2b. Live admission control — currently rejecting the app's deployment at the API server. |
+| `k8s/` | The app as Kubernetes manifests, plus RBAC (zero permissions) and a default-deny NetworkPolicy. |
+| `remediation/lambda/` | Checkpoint 3's response half. Restores the S3 baseline and records each fix to the audit bucket. |
+| `dashboard/` | Collects findings from every gate and reports compliance score, open findings and MTTR. |
+| `docs/findings/` | Real captured output from each phase — not descriptions of intended behaviour. |
+| `docs/threat-model.md` | STRIDE pass, including what is *not* mitigated. |
+
+## Current posture
+
+From the most recent end-to-end run:
+
+| Metric | Value |
+|---|---|
+| Compliance score | **56%** — 45 open of 102 policy checks |
+| Open vulnerabilities | 7 (Trivy, reported separately from the score) |
+| Mean time to remediate | 110s |
+
+The seeded flaws are genuinely still present, which is why the number is
+not higher. Two things are deliberately left in a failing state as
+standing evidence the gates work: the IAM wildcard policy and the open
+security-group ports are caught on every run by two independent gates,
+and Kyverno's rejection of the app deployment is never overridden.
+
+## Known gaps
+
+Stated here rather than buried, because a security project that hides
+its own gaps is making the argument for the wrong thing:
+
+- **Detection is not enforcement.** No branch protection rule exists and
+  `terraform apply` is run manually, so a developer can watch every gate
+  fail and deploy anyway.
+- **AWS Config never evaluates locally.** LocalStack mocks it — resources
+  are created but nothing is recorded or evaluated. The drift demo
+  publishes the Config event that real AWS would emit; everything
+  downstream of that event is real.
+- **The dashboard trusts its input.** Ingestion is unauthenticated.
+- **One drift event can produce two remediation records**, because
+  EventBridge assigned two deliveries different IDs.
+- **Kubernetes drift after admission is not monitored.** Kyverno guards
+  what gets in, not what changes afterwards.
 
 ## A note on scope
 
-This project runs almost entirely on LocalStack's free Community tier.
-AWS Config, GuardDuty, and Security Hub are AWS-managed services that
-LocalStack's free tier doesn't emulate — where this project references them,
-the README says explicitly whether that stage ran against real AWS
-(budget-capped) or was substituted with an open-source equivalent
-(Checkov, Prowler). No skill in this repo is claimed without something
-concrete backing it.
+This project runs on LocalStack. AWS Config is mocked there — it accepts
+resource creation but never records or evaluates anything, which is
+documented in `docs/findings/phase-5-remediation-results.md` along with
+how it was verified. Everything else (S3, IAM, EC2/VPC, Lambda,
+EventBridge, CloudTrail, CloudWatch Logs) behaves for real.
+
+No skill in this repo is claimed without something concrete backing it.
+Every phase has a findings document in `docs/findings/` containing actual
+command output, including the bugs found along the way and the ones still
+open.
